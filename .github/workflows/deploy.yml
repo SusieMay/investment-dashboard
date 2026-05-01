@@ -1,0 +1,84 @@
+name: Wdrożenie na GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Buduj aplikację
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repozytorium
+        uses: actions/checkout@v4
+
+      - name: Konfiguracja Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Instalacja zależności
+        run: npm ci
+
+      - name: Buduj projekt Vite
+        env:
+          # Ustaw ścieżkę bazową jako /<nazwa-repozytorium>/
+          VITE_BASE_PATH: /${{ github.event.repository.name }}/
+          VITE_AUTH_PASSWORD: ${{ secrets.VITE_AUTH_PASSWORD }}
+        run: npm run build
+
+      - name: Konfiguracja GitHub Pages
+        uses: actions/configure-pages@v4
+
+      - name: Załaduj artefakt do Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './dist'
+
+  deploy:
+    name: Wdróż na GitHub Pages
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Wdróż na GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  deploy-functions:
+    name: Wdróż Edge Functions (Supabase)
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Checkout repozytorium
+        uses: actions/checkout@v4
+
+      - name: Instalacja Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Wdróż funkcję refresh-prices
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          supabase functions deploy refresh-prices \
+            --project-ref swrpjlcnkrkzbwrmezwf \
+            --no-verify-jwt

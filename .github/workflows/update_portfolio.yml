@@ -1,0 +1,35 @@
+name: Aktualizacja cen portfela
+
+on:
+  schedule:
+    # Raz dziennie w dni robocze o 18:30 UTC (po zamknięciu giełdy NYSE)
+    - cron: '30 18 * * 1-5'
+  workflow_dispatch:
+    # Możliwość ręcznego uruchomienia z zakładki Actions
+
+jobs:
+  update-prices:
+    name: Pobierz ceny i zapisz historię
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repozytorium
+        uses: actions/checkout@v4
+
+      - name: Konfiguracja Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Instalacja zależności Python
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Uruchomienie skryptu aktualizacji
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python scripts/update_portfolio.py
